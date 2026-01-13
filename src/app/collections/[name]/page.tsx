@@ -3,7 +3,7 @@
 import { use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Search, FileText, Trash2, Loader2 } from "lucide-react";
+import { ArrowLeft, Search, FileText, Trash2, Loader2, Languages, Lightbulb } from "lucide-react";
 import { useCollection, useDeleteCollection } from "@/hooks/use-collections";
 import { Button } from "@/components/ui/button";
 import {
@@ -113,6 +113,18 @@ export default function CollectionDetailPage({
               <Link href={`/collections/${encodeURIComponent(decodedName)}/documents`}>
                 <FileText className="mr-2 h-4 w-4" />
                 Documents
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href={`/collections/${encodeURIComponent(decodedName)}/translations`}>
+                <Languages className="mr-2 h-4 w-4" />
+                Translations
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href={`/collections/${encodeURIComponent(decodedName)}/suggest`}>
+                <Lightbulb className="mr-2 h-4 w-4" />
+                Suggest
               </Link>
             </Button>
             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

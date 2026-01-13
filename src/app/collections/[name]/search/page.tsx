@@ -2,7 +2,7 @@
 
 import { use, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Search, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Search, Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCollection } from "@/hooks/use-collections";
 import { useSearch } from "@/hooks/use-search";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -51,9 +52,16 @@ export default function SearchPage({
   const [selectedFacets, setSelectedFacets] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState("");
   const [limit, setLimit] = useState(10);
+  const [offset, setOffset] = useState(0);
   const [typoTolerance, setTypoTolerance] = useState(0);
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [expandedDoc, setExpandedDoc] = useState<string | null>(null);
+
+  // Overlay configuration
+  const [overlayEnabled, setOverlayEnabled] = useState(false);
+  const [overlayContextKey, setOverlayContextKey] = useState("");
+  const [overlayBaseField, setOverlayBaseField] = useState("default_value");
+  const [overlayStrategy, setOverlayStrategy] = useState<"min" | "override" | "max">("override");
 
   const facetFields =
     collection?.fields.filter((f) => f.facet).map((f) => f.name) || [];
@@ -64,7 +72,8 @@ export default function SearchPage({
       .filter((f) => f.type === "string" && f.index !== false)
       .map((f) => f.name) || [];
 
-  const handleSearch = () => {
+  const handleSearch = (newOffset?: number) => {
+    const searchOffset = newOffset ?? offset;
     searchMutation.mutate(
       {
         q: query || "*",
@@ -72,12 +81,32 @@ export default function SearchPage({
         facets: selectedFacets.length > 0 ? selectedFacets : undefined,
         sort_by: sortBy || undefined,
         limit,
+        offset: searchOffset > 0 ? searchOffset : undefined,
         typo_tolerance: typoTolerance > 0 ? typoTolerance : undefined,
+        overlay:
+          overlayEnabled && overlayContextKey
+            ? {
+                context_key: overlayContextKey,
+                base_field: overlayBaseField,
+                strategy: overlayStrategy,
+              }
+            : undefined,
       },
       {
-        onSuccess: (data) => setResults(data),
+        onSuccess: (data) => {
+          setResults(data);
+          if (newOffset !== undefined) setOffset(newOffset);
+        },
       }
     );
+  };
+
+  const currentPage = Math.floor(offset / limit) + 1;
+  const totalPages = results ? Math.ceil(results.found / limit) : 0;
+
+  const goToPage = (page: number) => {
+    const newOffset = (page - 1) * limit;
+    handleSearch(newOffset);
   };
 
   const toggleFacet = (field: string) => {
@@ -194,7 +223,7 @@ export default function SearchPage({
               </div>
 
               <Button
-                onClick={handleSearch}
+                onClick={() => { setOffset(0); handleSearch(0); }}
                 className="w-full"
                 disabled={searchMutation.isPending}
               >
@@ -238,6 +267,59 @@ export default function SearchPage({
             </Card>
           )}
 
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">Value Overlay</CardTitle>
+                <Switch
+                  checked={overlayEnabled}
+                  onCheckedChange={setOverlayEnabled}
+                />
+              </div>
+              <CardDescription>
+                Apply context-specific value overrides
+              </CardDescription>
+            </CardHeader>
+            {overlayEnabled && (
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Context Key</Label>
+                  <Input
+                    value={overlayContextKey}
+                    onChange={(e) => setOverlayContextKey(e.target.value)}
+                    placeholder="e.g., customer_123"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Base Field</Label>
+                  <Input
+                    value={overlayBaseField}
+                    onChange={(e) => setOverlayBaseField(e.target.value)}
+                    placeholder="default_value"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Strategy</Label>
+                  <Select
+                    value={overlayStrategy}
+                    onValueChange={(v) =>
+                      setOverlayStrategy(v as "min" | "override" | "max")
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="override">Override</SelectItem>
+                      <SelectItem value="min">Minimum</SelectItem>
+                      <SelectItem value="max">Maximum</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+
           {results?.facets && Object.keys(results.facets).length > 0 && (
             <Card>
               <CardHeader>
@@ -279,7 +361,34 @@ export default function SearchPage({
                 <p className="text-sm text-muted-foreground">
                   Found <strong>{results.found.toLocaleString()}</strong>{" "}
                   results in <strong>{results.took_ms}ms</strong>
+                  {totalPages > 1 && (
+                    <span className="ml-2">
+                      (Page {currentPage} of {totalPages})
+                    </span>
+                  )}
                 </p>
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => goToPage(currentPage - 1)}
+                      disabled={currentPage <= 1 || searchMutation.isPending}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={currentPage >= totalPages || searchMutation.isPending}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <Card>
@@ -290,6 +399,7 @@ export default function SearchPage({
                         <TableHead className="w-8"></TableHead>
                         <TableHead>ID</TableHead>
                         <TableHead>Score</TableHead>
+                        {overlayEnabled && <TableHead>Effective Value</TableHead>}
                         <TableHead>Preview</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -320,13 +430,24 @@ export default function SearchPage({
                                 {hit.score.toFixed(3)}
                               </Badge>
                             </TableCell>
+                            {overlayEnabled && (
+                              <TableCell>
+                                {hit.effective_value !== undefined ? (
+                                  <Badge variant="secondary">
+                                    {hit.effective_value}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                            )}
                             <TableCell className="max-w-md truncate">
                               {getPreview(hit)}
                             </TableCell>
                           </TableRow>
                           {expandedDoc === hit.id && (
                             <TableRow>
-                              <TableCell colSpan={4}>
+                              <TableCell colSpan={overlayEnabled ? 5 : 4}>
                                 <pre className="max-h-64 overflow-auto rounded bg-muted p-4 text-xs">
                                   {JSON.stringify(hit.doc, null, 2)}
                                 </pre>

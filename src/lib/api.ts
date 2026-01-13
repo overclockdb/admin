@@ -10,6 +10,11 @@ import type {
   SearchResponse,
   HealthResponse,
   ApiError,
+  SuggestResponse,
+  FacetSuggestResponse,
+  SetTranslationsRequest,
+  FieldTranslationsResponse,
+  OverlayDocument,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8108";
@@ -153,6 +158,122 @@ export async function search(
       body: JSON.stringify(query),
     }
   );
+}
+
+// Suggestion endpoints
+export async function getSuggestions(
+  collection: string,
+  prefix: string,
+  limit: number = 5
+): Promise<SuggestResponse> {
+  const params = new URLSearchParams({ prefix, limit: limit.toString() });
+  return request<SuggestResponse>(
+    `/api/v1/collections/${encodeURIComponent(collection)}/suggest?${params}`
+  );
+}
+
+export async function getFacetSuggestions(
+  collection: string
+): Promise<FacetSuggestResponse> {
+  return request<FacetSuggestResponse>(
+    `/api/v1/collections/${encodeURIComponent(collection)}/suggest-facets`
+  );
+}
+
+// Translation endpoints
+export async function setTranslations(
+  collection: string,
+  data: SetTranslationsRequest
+): Promise<SuccessResponse> {
+  return request<SuccessResponse>(
+    `/api/v1/collections/${encodeURIComponent(collection)}/translations`,
+    {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+export async function getTranslations(
+  collection: string,
+  field: string
+): Promise<FieldTranslationsResponse> {
+  return request<FieldTranslationsResponse>(
+    `/api/v1/collections/${encodeURIComponent(collection)}/translations/${encodeURIComponent(field)}`
+  );
+}
+
+// Overlay endpoints (using _overlays collection)
+const OVERLAYS_COLLECTION = "_overlays";
+
+export interface OverlaySearchParams {
+  contextKey?: string;
+  entityKeyFilter?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export async function getOverlays(params: OverlaySearchParams = {}): Promise<SearchResponse> {
+  const { contextKey, entityKeyFilter, limit = 10, offset = 0 } = params;
+
+  let filter: string | undefined;
+  if (contextKey) {
+    filter = `context_key:=${contextKey}`;
+    if (entityKeyFilter) {
+      filter += ` AND entity_key:${entityKeyFilter}`;
+    }
+  } else if (entityKeyFilter) {
+    filter = `entity_key:${entityKeyFilter}`;
+  }
+
+  return search(OVERLAYS_COLLECTION, {
+    q: "*",
+    filter,
+    facets: ["context_key"],
+    limit,
+    offset: offset > 0 ? offset : undefined,
+  });
+}
+
+export async function getOverlayContexts(): Promise<SearchResponse> {
+  return search(OVERLAYS_COLLECTION, {
+    q: "*",
+    facets: ["context_key"],
+    limit: 0,
+    max_facet_values: 1000,
+  });
+}
+
+export async function createOverlay(
+  overlay: OverlayDocument
+): Promise<{ id: string; success: boolean }> {
+  return createDocument(OVERLAYS_COLLECTION, overlay);
+}
+
+export async function updateOverlay(
+  id: string,
+  overlay: OverlayDocument
+): Promise<{ id: string; success: boolean }> {
+  return updateDocument(OVERLAYS_COLLECTION, id, overlay);
+}
+
+export async function deleteOverlay(id: string): Promise<SuccessResponse> {
+  return deleteDocument(OVERLAYS_COLLECTION, id);
+}
+
+export async function ensureOverlaysCollection(): Promise<CollectionInfo> {
+  try {
+    return await getCollection(OVERLAYS_COLLECTION);
+  } catch {
+    return createCollection({
+      name: OVERLAYS_COLLECTION,
+      fields: [
+        { name: "context_key", type: "string", index: true, facet: true },
+        { name: "entity_key", type: "string", index: true, facet: true },
+        { name: "value", type: "float", sort: true },
+      ],
+    });
+  }
 }
 
 export { ApiClientError };

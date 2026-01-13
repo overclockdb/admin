@@ -146,6 +146,49 @@ export interface SuggestResponse {
   took_ms: number;
 }
 
+// Facet suggestion response
+export interface FacetSuggestion {
+  field: string;
+  score: number;
+  reason: string;
+  cardinality: number;
+  already_facet: boolean;
+}
+
+export interface FacetSuggestResponse {
+  suggestions: FacetSuggestion[];
+  took_ms: number;
+}
+
+// Translation types
+export interface TranslationLabel {
+  [language: string]: string;
+}
+
+export interface TranslationEntry {
+  value: string;
+  labels: TranslationLabel;
+}
+
+export interface SetTranslationsRequest {
+  field: string;
+  translations: TranslationEntry[];
+}
+
+export interface FieldTranslationsResponse {
+  field: string;
+  translations: Record<string, { labels: TranslationLabel }>;
+}
+
+// Overlay document type
+export interface OverlayDocument {
+  id: string;
+  context_key: string;
+  entity_key: string;
+  value: number;
+  [key: string]: unknown;
+}
+
 // API error response
 export interface ApiError {
   error: string;
