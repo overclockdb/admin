@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import {
   Plus,
   Trash2,
+  Pencil,
   Loader2,
   Layers,
   Hash,
@@ -50,6 +51,7 @@ import {
 import type { OverlayDocument } from "@/lib/types";
 
 const LIMIT_OPTIONS = [10, 20, 50, 100];
+const RESERVED_FIELDS = ["id", "context_key", "entity_key"];
 
 export default function OverlaysPage() {
   // Context list state
@@ -90,14 +92,29 @@ export default function OverlaysPage() {
     contextPage * contextLimit
   );
 
-  // Get overlay values for selected context
-  const overlays: OverlayDocument[] =
-    overlaysData?.hits?.map((hit) => ({
-      id: hit.id,
-      context_key: hit.doc.context_key as string,
-      entity_key: hit.doc.entity_key as string,
-      value: hit.doc.value as number,
-    })) || [];
+  // Get overlay values for selected context - extract all fields dynamically
+  const overlays = useMemo(() => {
+    return (
+      overlaysData?.hits?.map((hit) => ({
+        ...hit.doc,
+        id: hit.id,
+      } as OverlayDocument)) || []
+    );
+  }, [overlaysData]);
+
+  // Discover all unique field names from the overlays (excluding reserved fields)
+  const dynamicFields = useMemo(() => {
+    const fieldSet = new Set<string>();
+    for (const overlay of overlays) {
+      for (const key of Object.keys(overlay)) {
+        if (!RESERVED_FIELDS.includes(key)) {
+          fieldSet.add(key);
+        }
+      }
+    }
+    return Array.from(fieldSet).sort();
+  }, [overlays]);
+
   const totalOverlays = overlaysData?.found || 0;
   const valuesTotalPages = Math.ceil(totalOverlays / valuesLimit);
 
@@ -116,6 +133,13 @@ export default function OverlaysPage() {
     setSelectedContext(null);
     setEntityFilter("");
     setValuesPage(1);
+  };
+
+  const formatValue = (value: unknown): string => {
+    if (value === null || value === undefined) return "-";
+    if (typeof value === "number") return value.toLocaleString();
+    if (typeof value === "string") return value;
+    return JSON.stringify(value);
   };
 
   if (contextsLoading) {
@@ -220,62 +244,89 @@ export default function OverlaysPage() {
                 No overlays found
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Entity Key</TableHead>
-                    <TableHead>Value</TableHead>
-                    <TableHead className="w-20">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {overlays.map((overlay) => (
-                    <TableRow key={overlay.id}>
-                      <TableCell className="font-mono">{overlay.entity_key}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{overlay.value.toLocaleString()}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Dialog
-                          open={deleteId === overlay.id}
-                          onOpenChange={(open) => setDeleteId(open ? overlay.id : null)}
-                        >
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Delete Overlay</DialogTitle>
-                              <DialogDescription>
-                                Are you sure you want to delete the overlay for{" "}
-                                <strong>{overlay.entity_key}</strong>? This action cannot be
-                                undone.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <DialogFooter>
-                              <Button variant="outline" onClick={() => setDeleteId(null)}>
-                                Cancel
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                onClick={() => handleDelete(overlay.id)}
-                                disabled={deleteOverlay.isPending}
-                              >
-                                {deleteOverlay.isPending && (
-                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                )}
-                                Delete
-                              </Button>
-                            </DialogFooter>
-                          </DialogContent>
-                        </Dialog>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky left-0 bg-background">Entity Key</TableHead>
+                      {dynamicFields.map((field) => (
+                        <TableHead key={field} className="text-right">
+                          {field}
+                        </TableHead>
+                      ))}
+                      <TableHead className="w-20">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {overlays.map((overlay) => (
+                      <TableRow key={overlay.id}>
+                        <TableCell className="sticky left-0 bg-background font-mono">
+                          {overlay.entity_key as string}
+                        </TableCell>
+                        {dynamicFields.map((field) => (
+                          <TableCell key={field} className="text-right">
+                            {overlay[field] != null ? (
+                              typeof overlay[field] === "number" ? (
+                                <Badge variant="secondary">
+                                  {formatValue(overlay[field])}
+                                </Badge>
+                              ) : (
+                                <span className="text-sm">{formatValue(overlay[field])}</span>
+                              )
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                        ))}
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="icon" asChild>
+                              <Link href={`/overlays/${encodeURIComponent(overlay.id)}/edit`}>
+                                <Pencil className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                            <Dialog
+                              open={deleteId === overlay.id}
+                              onOpenChange={(open) => setDeleteId(open ? overlay.id : null)}
+                            >
+                              <DialogTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Delete Overlay</DialogTitle>
+                                  <DialogDescription>
+                                    Are you sure you want to delete the overlay for{" "}
+                                    <strong>{overlay.entity_key as string}</strong>? This action cannot be
+                                    undone.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <DialogFooter>
+                                  <Button variant="outline" onClick={() => setDeleteId(null)}>
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    onClick={() => handleDelete(overlay.id)}
+                                    disabled={deleteOverlay.isPending}
+                                  >
+                                    {deleteOverlay.isPending && (
+                                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    )}
+                                    Delete
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -318,7 +369,7 @@ export default function OverlaysPage() {
         <div className="flex items-center gap-3">
           <Layers className="h-8 w-8" />
           <div>
-            <h1 className="text-3xl font-bold">Value Overlays</h1>
+            <h1 className="text-3xl font-bold">Overlays</h1>
             <p className="mt-1 text-muted-foreground">
               Manage context-specific value overrides
             </p>

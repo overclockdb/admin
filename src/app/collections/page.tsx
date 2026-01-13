@@ -61,7 +61,10 @@ export default function CollectionsPage() {
     );
   }
 
-  const collections = data?.collections || [];
+  // Filter out internal collections (prefixed with _)
+  const collections = (data?.collections || []).filter(
+    (c) => !c.name.startsWith("_")
+  );
 
   return (
     <div className="p-8">

@@ -244,6 +244,10 @@ export async function getOverlayContexts(): Promise<SearchResponse> {
   });
 }
 
+export async function getOverlay(id: string): Promise<OverlayDocument> {
+  return getDocument(OVERLAYS_COLLECTION, id) as Promise<OverlayDocument>;
+}
+
 export async function createOverlay(
   overlay: OverlayDocument
 ): Promise<{ id: string; success: boolean }> {
@@ -265,12 +269,12 @@ export async function ensureOverlaysCollection(): Promise<CollectionInfo> {
   try {
     return await getCollection(OVERLAYS_COLLECTION);
   } catch {
+    // Create collection with only required fields - additional fields are dynamic
     return createCollection({
       name: OVERLAYS_COLLECTION,
       fields: [
         { name: "context_key", type: "string", index: true, facet: true },
         { name: "entity_key", type: "string", index: true, facet: true },
-        { name: "value", type: "float", sort: true },
       ],
     });
   }

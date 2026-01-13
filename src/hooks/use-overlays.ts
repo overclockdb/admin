@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  getOverlay,
   getOverlays,
   getOverlayContexts,
   createOverlay,
@@ -29,6 +30,18 @@ export function useOverlays(params: OverlaySearchParams = {}) {
       await ensureOverlaysCollection();
       return getOverlays(params);
     },
+  });
+}
+
+export function useOverlay(id: string | null) {
+  return useQuery({
+    queryKey: ["overlay", id],
+    queryFn: async () => {
+      if (!id) return null;
+      await ensureOverlaysCollection();
+      return getOverlay(id);
+    },
+    enabled: !!id,
   });
 }
 

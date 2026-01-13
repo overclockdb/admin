@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { use, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2, Layers, Plus, Trash2 } from "lucide-react";
-import { useCreateOverlay } from "@/hooks/use-overlays";
+import { useOverlay, useUpdateOverlay } from "@/hooks/use-overlays";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,16 +31,53 @@ interface DynamicField {
   value: string;
 }
 
-export default function NewOverlayPage() {
+const RESERVED_FIELDS = ["id", "context_key", "entity_key"];
+
+export default function EditOverlayPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const overlayId = decodeURIComponent(id);
   const router = useRouter();
-  const createOverlay = useCreateOverlay();
+  const { data: overlay, isLoading, error: loadError } = useOverlay(overlayId);
+  const updateOverlay = useUpdateOverlay();
 
   const [contextKey, setContextKey] = useState("");
   const [entityKey, setEntityKey] = useState("");
-  const [fields, setFields] = useState<DynamicField[]>([
-    { id: crypto.randomUUID(), name: "", type: "number", value: "" },
-  ]);
+  const [fields, setFields] = useState<DynamicField[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
+
+  // Initialize form when overlay data is loaded
+  useEffect(() => {
+    if (overlay && !initialized) {
+      setContextKey(overlay.context_key);
+      setEntityKey(overlay.entity_key);
+
+      // Extract dynamic fields from overlay
+      const dynamicFields: DynamicField[] = [];
+      for (const [key, value] of Object.entries(overlay)) {
+        if (!RESERVED_FIELDS.includes(key)) {
+          dynamicFields.push({
+            id: crypto.randomUUID(),
+            name: key,
+            type: typeof value === "number" ? "number" : "string",
+            value: String(value),
+          });
+        }
+      }
+
+      // Ensure at least one field
+      if (dynamicFields.length === 0) {
+        dynamicFields.push({ id: crypto.randomUUID(), name: "", type: "number", value: "" });
+      }
+
+      setFields(dynamicFields);
+      setInitialized(true);
+    }
+  }, [overlay, initialized]);
 
   const addField = () => {
     setFields([
@@ -81,8 +118,8 @@ export default function NewOverlayPage() {
     }
 
     try {
-      const overlay: OverlayDocument = {
-        id: `overlay_${contextKey.trim()}_${entityKey.trim()}`,
+      const updatedOverlay: OverlayDocument = {
+        id: overlayId,
         context_key: contextKey.trim(),
         entity_key: entityKey.trim(),
       };
@@ -92,19 +129,39 @@ export default function NewOverlayPage() {
         if (field.type === "number") {
           const num = parseFloat(field.value);
           if (!isNaN(num)) {
-            overlay[field.name.trim()] = num;
+            updatedOverlay[field.name.trim()] = num;
           }
         } else {
-          overlay[field.name.trim()] = field.value.trim();
+          updatedOverlay[field.name.trim()] = field.value.trim();
         }
       }
 
-      await createOverlay.mutateAsync(overlay);
+      await updateOverlay.mutateAsync({ id: overlayId, overlay: updatedOverlay });
       router.push("/overlays");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create overlay");
+      setError(err instanceof Error ? err.message : "Failed to update overlay");
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="p-8">
+        <Card className="border-destructive bg-destructive/10">
+          <CardContent className="pt-4 text-destructive">
+            Failed to load overlay: {loadError instanceof Error ? loadError.message : "Unknown error"}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8">
@@ -118,9 +175,9 @@ export default function NewOverlayPage() {
         <div className="flex items-center gap-3">
           <Layers className="h-8 w-8" />
           <div>
-            <h1 className="text-3xl font-bold">New Overlay</h1>
+            <h1 className="text-3xl font-bold">Edit Overlay</h1>
             <p className="mt-1 text-muted-foreground">
-              Create a context-specific value override
+              Modify context-specific value override
             </p>
           </div>
         </div>
@@ -137,7 +194,7 @@ export default function NewOverlayPage() {
           <CardHeader>
             <CardTitle>Keys</CardTitle>
             <CardDescription>
-              Specify the context and entity this overlay applies to
+              Context and entity keys (read-only for existing overlays)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -149,6 +206,7 @@ export default function NewOverlayPage() {
                   value={contextKey}
                   onChange={(e) => setContextKey(e.target.value)}
                   placeholder="e.g., customer_123"
+                  disabled
                 />
                 <p className="text-xs text-muted-foreground">
                   Customer ID, region, tenant, etc.
@@ -162,6 +220,7 @@ export default function NewOverlayPage() {
                   value={entityKey}
                   onChange={(e) => setEntityKey(e.target.value)}
                   placeholder="e.g., product_456"
+                  disabled
                 />
                 <p className="text-xs text-muted-foreground">
                   Product ID, setting name, etc.
@@ -175,11 +234,11 @@ export default function NewOverlayPage() {
           <CardHeader>
             <CardTitle>Fields</CardTitle>
             <CardDescription>
-              Add custom fields for this overlay (at least one required)
+              Edit custom fields for this overlay (at least one required)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {fields.map((field, index) => (
+            {fields.map((field) => (
               <div key={field.id} className="flex items-end gap-3">
                 <div className="flex-1 space-y-2">
                   <Label>Field Name</Label>
@@ -243,11 +302,11 @@ export default function NewOverlayPage() {
         </Card>
 
         <div className="flex gap-4">
-          <Button type="submit" disabled={createOverlay.isPending}>
-            {createOverlay.isPending && (
+          <Button type="submit" disabled={updateOverlay.isPending}>
+            {updateOverlay.isPending && (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             )}
-            Create Overlay
+            Save Changes
           </Button>
           <Button type="button" variant="outline" asChild>
             <Link href="/overlays">Cancel</Link>

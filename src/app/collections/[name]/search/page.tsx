@@ -60,7 +60,8 @@ export default function SearchPage({
   // Overlay configuration
   const [overlayEnabled, setOverlayEnabled] = useState(false);
   const [overlayContextKey, setOverlayContextKey] = useState("");
-  const [overlayBaseField, setOverlayBaseField] = useState("default_value");
+  const [overlayComparisonField, setOverlayComparisonField] = useState("");
+  const [overlayBaseField, setOverlayBaseField] = useState("");
   const [overlayStrategy, setOverlayStrategy] = useState<"min" | "override" | "max">("override");
 
   const facetFields =
@@ -87,6 +88,7 @@ export default function SearchPage({
           overlayEnabled && overlayContextKey
             ? {
                 context_key: overlayContextKey,
+                comparison_field: overlayComparisonField || undefined,
                 base_field: overlayBaseField,
                 strategy: overlayStrategy,
               }
@@ -291,12 +293,26 @@ export default function SearchPage({
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label>Comparison Field</Label>
+                  <Input
+                    value={overlayComparisonField}
+                    onChange={(e) => setOverlayComparisonField(e.target.value)}
+                    placeholder="e.g., price, discount"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Overlay field to use for min/max/override comparison
+                  </p>
+                </div>
+                <div className="space-y-2">
                   <Label>Base Field</Label>
                   <Input
                     value={overlayBaseField}
                     onChange={(e) => setOverlayBaseField(e.target.value)}
-                    placeholder="default_value"
+                    placeholder="e.g., base_price"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Document field to compare against
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Strategy</Label>
@@ -310,9 +326,9 @@ export default function SearchPage({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="override">Override</SelectItem>
-                      <SelectItem value="min">Minimum</SelectItem>
-                      <SelectItem value="max">Maximum</SelectItem>
+                      <SelectItem value="override">Override (use overlay)</SelectItem>
+                      <SelectItem value="min">Minimum (lower wins)</SelectItem>
+                      <SelectItem value="max">Maximum (higher wins)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -448,9 +464,43 @@ export default function SearchPage({
                           {expandedDoc === hit.id && (
                             <TableRow>
                               <TableCell colSpan={overlayEnabled ? 5 : 4}>
-                                <pre className="max-h-64 overflow-auto rounded bg-muted p-4 text-xs">
-                                  {JSON.stringify(hit.doc, null, 2)}
-                                </pre>
+                                <div className="space-y-4">
+                                  <div>
+                                    <h4 className="mb-2 text-sm font-medium">Document</h4>
+                                    <pre className="max-h-64 overflow-auto rounded bg-muted p-4 text-xs">
+                                      {JSON.stringify(hit.doc, null, 2)}
+                                    </pre>
+                                  </div>
+                                  {hit.overlay_fields && (
+                                    <div>
+                                      <h4 className="mb-2 text-sm font-medium">Overlay Fields</h4>
+                                      <div className="grid grid-cols-2 gap-4 rounded bg-muted p-4">
+                                        {Object.keys(hit.overlay_fields.numeric).length > 0 && (
+                                          <div>
+                                            <p className="text-xs font-medium text-muted-foreground mb-2">Numeric</p>
+                                            {Object.entries(hit.overlay_fields.numeric).map(([key, val]) => (
+                                              <div key={key} className="flex justify-between text-sm">
+                                                <span className="text-muted-foreground">{key}:</span>
+                                                <Badge variant="secondary">{val}</Badge>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                        {Object.keys(hit.overlay_fields.string).length > 0 && (
+                                          <div>
+                                            <p className="text-xs font-medium text-muted-foreground mb-2">String</p>
+                                            {Object.entries(hit.overlay_fields.string).map(([key, val]) => (
+                                              <div key={key} className="flex justify-between text-sm">
+                                                <span className="text-muted-foreground">{key}:</span>
+                                                <span>{val}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </TableCell>
                             </TableRow>
                           )}

@@ -90,8 +90,10 @@ export interface SearchRequest {
   offset?: number;
   overlay?: {
     context_key: string;
+    comparison_field?: string; // Which overlay field to use for merge strategy (default: "value")
     base_field: string;
     strategy: "min" | "override" | "max";
+    return_fields?: string[]; // Which overlay fields to return (empty = all)
   };
   typo_tolerance?: number;
   vector_search?: boolean;
@@ -99,6 +101,12 @@ export interface SearchRequest {
   max_facet_values?: number;
   hierarchy_parent?: string;
   language?: string;
+}
+
+// Overlay fields returned in search results
+export interface OverlayFields {
+  numeric: Record<string, number>;
+  string: Record<string, string>;
 }
 
 // Search hit
@@ -109,6 +117,7 @@ export interface SearchHit {
   effective_value?: number;
   text_score?: number;
   vector_score?: number;
+  overlay_fields?: OverlayFields;
 }
 
 // Facet value with count
@@ -180,12 +189,12 @@ export interface FieldTranslationsResponse {
   translations: Record<string, { labels: TranslationLabel }>;
 }
 
-// Overlay document type
+// Overlay document type - supports any custom fields
 export interface OverlayDocument {
   id: string;
   context_key: string;
   entity_key: string;
-  value: number;
+  // Any additional fields (numeric, string, etc.)
   [key: string]: unknown;
 }
 
