@@ -53,7 +53,7 @@ export default function CollectionsPage() {
             </CardTitle>
             <CardDescription>
               Make sure OverclockDB is running on{" "}
-              {process.env.NEXT_PUBLIC_API_URL || "http://localhost:8108"}
+              {process.env.NEXT_PUBLIC_API_URL || "http://localhost:8190"}
             </CardDescription>
           </CardHeader>
         </Card>

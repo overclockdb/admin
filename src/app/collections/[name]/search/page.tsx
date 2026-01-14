@@ -1,8 +1,8 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { ArrowLeft, Search, Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { useCollection } from "@/hooks/use-collections";
 import { useSearch } from "@/hooks/use-search";
 import { Button } from "@/components/ui/button";
@@ -64,43 +64,99 @@ export default function SearchPage({
   const [overlayBaseField, setOverlayBaseField] = useState("");
   const [overlayStrategy, setOverlayStrategy] = useState<"min" | "override" | "max">("override");
 
+  // Request JSON editor
+  const [lastRequest, setLastRequest] = useState<string>("");
+  const [customRequest, setCustomRequest] = useState<string>("");
+  const syncingFromJson = useRef(false);
+
+  // Sync form changes to JSON editor (clear custom/last so it falls back to buildRequest)
+  useEffect(() => {
+    if (!syncingFromJson.current) {
+      setCustomRequest("");
+      setLastRequest("");
+    }
+  }, [query, filter, selectedFacets, sortBy, limit, offset, typoTolerance, overlayEnabled, overlayContextKey, overlayComparisonField, overlayBaseField, overlayStrategy]);
+
+  // Sync JSON editor changes to form fields (real-time)
+  useEffect(() => {
+    if (!customRequest) return;
+    try {
+      const request = JSON.parse(customRequest);
+      syncingFromJson.current = true;
+
+      if (request.q !== undefined) setQuery(request.q);
+      if (request.filter !== undefined) setFilter(request.filter || "");
+      if (request.limit !== undefined) setLimit(request.limit);
+      if (request.offset !== undefined) setOffset(request.offset || 0);
+      if (request.typo_tolerance !== undefined) setTypoTolerance(request.typo_tolerance || 0);
+      if (request.sort_by !== undefined) setSortBy(request.sort_by || "");
+      if (request.facets !== undefined) setSelectedFacets(request.facets || []);
+
+      if (request.overlay) {
+        setOverlayEnabled(true);
+        setOverlayContextKey(request.overlay.context_key || "");
+        setOverlayComparisonField(request.overlay.comparison_field || "");
+        setOverlayBaseField(request.overlay.base_field || "");
+        setOverlayStrategy(request.overlay.strategy || "override");
+      } else if (request.overlay === undefined || request.overlay === null) {
+        setOverlayEnabled(false);
+      }
+
+      // Reset flag after state updates are batched
+      setTimeout(() => { syncingFromJson.current = false; }, 0);
+    } catch {
+      // Invalid JSON - don't sync
+    }
+  }, [customRequest]);
+
   const facetFields =
     collection?.fields.filter((f) => f.facet).map((f) => f.name) || [];
   const sortFields =
     collection?.fields.filter((f) => f.sort).map((f) => f.name) || [];
-  const searchFields =
-    collection?.fields
-      .filter((f) => f.type === "string" && f.index !== false)
-      .map((f) => f.name) || [];
+
+  const buildRequest = (searchOffset: number) => ({
+    q: query || "*",
+    filter: filter || undefined,
+    facets: selectedFacets.length > 0 ? selectedFacets : undefined,
+    sort_by: sortBy && sortBy !== "none" ? sortBy : undefined,
+    limit,
+    offset: searchOffset > 0 ? searchOffset : undefined,
+    typo_tolerance: typoTolerance > 0 ? typoTolerance : undefined,
+    overlay:
+      overlayEnabled && overlayContextKey
+        ? {
+            context_key: overlayContextKey,
+            comparison_field: overlayComparisonField || undefined,
+            base_field: overlayBaseField,
+            strategy: overlayStrategy,
+          }
+        : undefined,
+  });
 
   const handleSearch = (newOffset?: number) => {
     const searchOffset = newOffset ?? offset;
-    searchMutation.mutate(
-      {
-        q: query || "*",
-        filter: filter || undefined,
-        facets: selectedFacets.length > 0 ? selectedFacets : undefined,
-        sort_by: sortBy || undefined,
-        limit,
-        offset: searchOffset > 0 ? searchOffset : undefined,
-        typo_tolerance: typoTolerance > 0 ? typoTolerance : undefined,
-        overlay:
-          overlayEnabled && overlayContextKey
-            ? {
-                context_key: overlayContextKey,
-                comparison_field: overlayComparisonField || undefined,
-                base_field: overlayBaseField,
-                strategy: overlayStrategy,
-              }
-            : undefined,
+    const request = buildRequest(searchOffset);
+    setLastRequest(JSON.stringify(request, null, 2));
+    searchMutation.mutate(request, {
+      onSuccess: (data) => {
+        setResults(data);
+        if (newOffset !== undefined) setOffset(newOffset);
       },
-      {
+    });
+  };
+
+  const handleCustomSearch = () => {
+    try {
+      const request = JSON.parse(customRequest || lastRequest || JSON.stringify(buildRequest(0)));
+      setLastRequest(JSON.stringify(request, null, 2));
+      searchMutation.mutate(request, {
         onSuccess: (data) => {
           setResults(data);
-          if (newOffset !== undefined) setOffset(newOffset);
         },
-      }
-    );
+      });
+    } catch {
+      alert("Invalid JSON");
+    }
   };
 
   const currentPage = Math.floor(offset / limit) + 1;
@@ -191,20 +247,13 @@ export default function SearchPage({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Limit</Label>
-                  <Select
-                    value={limit.toString()}
-                    onValueChange={(v) => setLimit(parseInt(v))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="20">20</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                      <SelectItem value="100">100</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={limit}
+                    onChange={(e) => setLimit(parseInt(e.target.value) || 10)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Typo Tolerance</Label>
@@ -223,19 +272,6 @@ export default function SearchPage({
                   </Select>
                 </div>
               </div>
-
-              <Button
-                onClick={() => { setOffset(0); handleSearch(0); }}
-                className="w-full"
-                disabled={searchMutation.isPending}
-              >
-                {searchMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Search className="mr-2 h-4 w-4" />
-                )}
-                Search
-              </Button>
             </CardContent>
           </Card>
 
@@ -371,6 +407,32 @@ export default function SearchPage({
         </div>
 
         <div className="space-y-4">
+          {/* Request JSON Editor - Always visible */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Request JSON</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Textarea
+                value={customRequest || lastRequest || JSON.stringify(buildRequest(0), null, 2)}
+                onChange={(e) => setCustomRequest(e.target.value)}
+                className="h-40 font-mono text-xs"
+              />
+              <Button
+                onClick={handleCustomSearch}
+                disabled={searchMutation.isPending}
+                className="w-full"
+              >
+                {searchMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="mr-2 h-4 w-4" />
+                )}
+                Send Request
+              </Button>
+            </CardContent>
+          </Card>
+
           {results && (
             <>
               <div className="flex items-center justify-between">

@@ -17,7 +17,7 @@ import type {
   OverlayDocument,
 } from "./types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8108";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8190";
 
 class ApiClientError extends Error {
   constructor(
