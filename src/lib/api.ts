@@ -203,18 +203,24 @@ export async function getTranslations(
   );
 }
 
-// Overlay endpoints (using _overlays collection)
-const OVERLAYS_COLLECTION = "_overlays";
+// Overlay endpoints (using overlays_{targetCollection} pattern)
+// Each target collection has its own overlay collection
+
+export function getOverlayCollectionName(targetCollection: string): string {
+  return `overlays_${targetCollection}`;
+}
 
 export interface OverlaySearchParams {
+  targetCollection: string;
   contextKey?: string;
   entityKeyFilter?: string;
   limit?: number;
   offset?: number;
 }
 
-export async function getOverlays(params: OverlaySearchParams = {}): Promise<SearchResponse> {
-  const { contextKey, entityKeyFilter, limit = 10, offset = 0 } = params;
+export async function getOverlays(params: OverlaySearchParams): Promise<SearchResponse> {
+  const { targetCollection, contextKey, entityKeyFilter, limit = 10, offset = 0 } = params;
+  const overlayCollection = getOverlayCollectionName(targetCollection);
 
   let filter: string | undefined;
   if (contextKey) {
@@ -226,7 +232,7 @@ export async function getOverlays(params: OverlaySearchParams = {}): Promise<Sea
     filter = `entity_key:${entityKeyFilter}`;
   }
 
-  return search(OVERLAYS_COLLECTION, {
+  return search(overlayCollection, {
     q: "*",
     filter,
     facets: ["context_key"],
@@ -235,8 +241,9 @@ export async function getOverlays(params: OverlaySearchParams = {}): Promise<Sea
   });
 }
 
-export async function getOverlayContexts(): Promise<SearchResponse> {
-  return search(OVERLAYS_COLLECTION, {
+export async function getOverlayContexts(targetCollection: string): Promise<SearchResponse> {
+  const overlayCollection = getOverlayCollectionName(targetCollection);
+  return search(overlayCollection, {
     q: "*",
     facets: ["context_key"],
     limit: 0,
@@ -244,40 +251,67 @@ export async function getOverlayContexts(): Promise<SearchResponse> {
   });
 }
 
-export async function getOverlay(id: string): Promise<OverlayDocument> {
-  return getDocument(OVERLAYS_COLLECTION, id) as Promise<OverlayDocument>;
+export async function getOverlay(targetCollection: string, id: string): Promise<OverlayDocument> {
+  const overlayCollection = getOverlayCollectionName(targetCollection);
+  return getDocument(overlayCollection, id) as Promise<OverlayDocument>;
 }
 
 export async function createOverlay(
+  targetCollection: string,
   overlay: OverlayDocument
 ): Promise<{ id: string; success: boolean }> {
-  return createDocument(OVERLAYS_COLLECTION, overlay);
+  const overlayCollection = getOverlayCollectionName(targetCollection);
+  return createDocument(overlayCollection, overlay);
 }
 
 export async function updateOverlay(
+  targetCollection: string,
   id: string,
   overlay: OverlayDocument
 ): Promise<{ id: string; success: boolean }> {
-  return updateDocument(OVERLAYS_COLLECTION, id, overlay);
+  const overlayCollection = getOverlayCollectionName(targetCollection);
+  return updateDocument(overlayCollection, id, overlay);
 }
 
-export async function deleteOverlay(id: string): Promise<SuccessResponse> {
-  return deleteDocument(OVERLAYS_COLLECTION, id);
+export async function deleteOverlay(targetCollection: string, id: string): Promise<SuccessResponse> {
+  const overlayCollection = getOverlayCollectionName(targetCollection);
+  return deleteDocument(overlayCollection, id);
 }
 
-export async function ensureOverlaysCollection(): Promise<CollectionInfo> {
+export async function ensureOverlaysCollection(targetCollection: string): Promise<CollectionInfo> {
+  const overlayCollection = getOverlayCollectionName(targetCollection);
   try {
-    return await getCollection(OVERLAYS_COLLECTION);
+    return await getCollection(overlayCollection);
   } catch {
     // Create collection with only required fields - additional fields are dynamic
     return createCollection({
-      name: OVERLAYS_COLLECTION,
+      name: overlayCollection,
       fields: [
         { name: "context_key", type: "string", index: true, facet: true },
         { name: "entity_key", type: "string", index: true, facet: true },
       ],
     });
   }
+}
+
+// Get list of collections that have overlay collections (overlays_*)
+export async function getOverlayTargetCollections(): Promise<string[]> {
+  const response = await getCollections();
+  const targets: string[] = [];
+  for (const col of response.collections) {
+    if (col.name.startsWith("overlays_")) {
+      targets.push(col.name.replace("overlays_", ""));
+    }
+  }
+  return targets;
+}
+
+// Get list of available target collections (excluding overlay collections)
+export async function getAvailableTargetCollections(): Promise<string[]> {
+  const response = await getCollections();
+  return response.collections
+    .filter(col => !col.name.startsWith("overlays_"))
+    .map(col => col.name);
 }
 
 export { ApiClientError };

@@ -1,9 +1,9 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { Suspense, use, useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Layers, Plus, Trash2 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, Loader2, Layers, Plus, Trash2, AlertCircle } from "lucide-react";
 import { useOverlay, useUpdateOverlay } from "@/hooks/use-overlays";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,10 +38,25 @@ export default function EditOverlayPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  return (
+    <Suspense fallback={<div className="flex h-full items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
+      <EditOverlayContent params={params} />
+    </Suspense>
+  );
+}
+
+function EditOverlayContent({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = use(params);
   const overlayId = decodeURIComponent(id);
   const router = useRouter();
-  const { data: overlay, isLoading, error: loadError } = useOverlay(overlayId);
+  const searchParams = useSearchParams();
+  const targetCollection = searchParams.get("target");
+
+  const { data: overlay, isLoading, error: loadError } = useOverlay(targetCollection, overlayId);
   const updateOverlay = useUpdateOverlay();
 
   const [contextKey, setContextKey] = useState("");
@@ -100,6 +115,11 @@ export default function EditOverlayPage({
     e.preventDefault();
     setError(null);
 
+    if (!targetCollection) {
+      setError("Target collection is required");
+      return;
+    }
+
     if (!contextKey.trim()) {
       setError("Context Key is required");
       return;
@@ -136,12 +156,39 @@ export default function EditOverlayPage({
         }
       }
 
-      await updateOverlay.mutateAsync({ id: overlayId, overlay: updatedOverlay });
-      router.push("/overlays");
+      await updateOverlay.mutateAsync({
+        targetCollection,
+        id: overlayId,
+        overlay: updatedOverlay
+      });
+      router.push(`/overlays?target=${encodeURIComponent(targetCollection)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update overlay");
     }
   };
+
+  const backUrl = targetCollection
+    ? `/overlays?target=${encodeURIComponent(targetCollection)}`
+    : "/overlays";
+
+  if (!targetCollection) {
+    return (
+      <div className="p-8">
+        <Button variant="ghost" size="sm" asChild className="mb-4">
+          <Link href="/overlays">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Overlays
+          </Link>
+        </Button>
+        <Card className="border-destructive bg-destructive/10">
+          <CardContent className="pt-4 flex items-center gap-2 text-destructive">
+            <AlertCircle className="h-4 w-4" />
+            Target collection is required. Please navigate from the overlays list.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -154,6 +201,12 @@ export default function EditOverlayPage({
   if (loadError) {
     return (
       <div className="p-8">
+        <Button variant="ghost" size="sm" asChild className="mb-4">
+          <Link href={backUrl}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Overlays
+          </Link>
+        </Button>
         <Card className="border-destructive bg-destructive/10">
           <CardContent className="pt-4 text-destructive">
             Failed to load overlay: {loadError instanceof Error ? loadError.message : "Unknown error"}
@@ -167,7 +220,7 @@ export default function EditOverlayPage({
     <div className="p-8">
       <div className="mb-8">
         <Button variant="ghost" size="sm" asChild className="mb-4">
-          <Link href="/overlays">
+          <Link href={backUrl}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Overlays
           </Link>
@@ -177,7 +230,7 @@ export default function EditOverlayPage({
           <div>
             <h1 className="text-3xl font-bold">Edit Overlay</h1>
             <p className="mt-1 text-muted-foreground">
-              Modify context-specific value override
+              Modify context-specific value override for <span className="font-mono text-foreground">{targetCollection}</span>
             </p>
           </div>
         </div>
@@ -309,7 +362,7 @@ export default function EditOverlayPage({
             Save Changes
           </Button>
           <Button type="button" variant="outline" asChild>
-            <Link href="/overlays">Cancel</Link>
+            <Link href={backUrl}>Cancel</Link>
           </Button>
         </div>
       </form>

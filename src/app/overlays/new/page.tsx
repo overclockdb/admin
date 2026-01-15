@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Loader2, Layers, Plus, Trash2 } from "lucide-react";
-import { useCreateOverlay } from "@/hooks/use-overlays";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, Loader2, Layers, Plus, Trash2, AlertCircle } from "lucide-react";
+import { useCreateOverlay, useAvailableTargetCollections } from "@/hooks/use-overlays";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,9 +32,22 @@ interface DynamicField {
 }
 
 export default function NewOverlayPage() {
-  const router = useRouter();
-  const createOverlay = useCreateOverlay();
+  return (
+    <Suspense fallback={<div className="flex h-full items-center justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}>
+      <NewOverlayContent />
+    </Suspense>
+  );
+}
 
+function NewOverlayContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const targetFromUrl = searchParams.get("target");
+
+  const createOverlay = useCreateOverlay();
+  const { data: availableCollections, isLoading: collectionsLoading } = useAvailableTargetCollections();
+
+  const [targetCollection, setTargetCollection] = useState(targetFromUrl || "");
   const [contextKey, setContextKey] = useState("");
   const [entityKey, setEntityKey] = useState("");
   const [fields, setFields] = useState<DynamicField[]>([
@@ -62,6 +75,11 @@ export default function NewOverlayPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!targetCollection) {
+      setError("Target Collection is required");
+      return;
+    }
 
     if (!contextKey.trim()) {
       setError("Context Key is required");
@@ -99,18 +117,22 @@ export default function NewOverlayPage() {
         }
       }
 
-      await createOverlay.mutateAsync(overlay);
-      router.push("/overlays");
+      await createOverlay.mutateAsync({ targetCollection, overlay });
+      router.push(`/overlays?target=${encodeURIComponent(targetCollection)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create overlay");
     }
   };
 
+  const backUrl = targetFromUrl
+    ? `/overlays?target=${encodeURIComponent(targetFromUrl)}`
+    : "/overlays";
+
   return (
     <div className="p-8">
       <div className="mb-8">
         <Button variant="ghost" size="sm" asChild className="mb-4">
-          <Link href="/overlays">
+          <Link href={backUrl}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Overlays
           </Link>
@@ -132,6 +154,53 @@ export default function NewOverlayPage() {
             <CardContent className="pt-4 text-destructive">{error}</CardContent>
           </Card>
         )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Target Collection</CardTitle>
+            <CardDescription>
+              Select the collection this overlay applies to
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {collectionsLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading collections...
+              </div>
+            ) : availableCollections && availableCollections.length > 0 ? (
+              <div className="space-y-2">
+                <Label htmlFor="targetCollection">Collection *</Label>
+                <Select
+                  value={targetCollection}
+                  onValueChange={setTargetCollection}
+                  disabled={!!targetFromUrl}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a collection" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableCollections.map((collection) => (
+                      <SelectItem key={collection} value={collection}>
+                        {collection}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {targetFromUrl && (
+                  <p className="text-xs text-muted-foreground">
+                    Collection pre-selected from URL
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <AlertCircle className="h-4 w-4" />
+                No collections available. Create a collection first.
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>
@@ -243,14 +312,17 @@ export default function NewOverlayPage() {
         </Card>
 
         <div className="flex gap-4">
-          <Button type="submit" disabled={createOverlay.isPending}>
+          <Button
+            type="submit"
+            disabled={createOverlay.isPending || !targetCollection}
+          >
             {createOverlay.isPending && (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             )}
             Create Overlay
           </Button>
           <Button type="button" variant="outline" asChild>
-            <Link href="/overlays">Cancel</Link>
+            <Link href={backUrl}>Cancel</Link>
           </Button>
         </div>
       </form>

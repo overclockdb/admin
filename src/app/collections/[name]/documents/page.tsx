@@ -122,7 +122,7 @@ export default function DocumentsPage({
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  const displayFields = collection?.fields.slice(0, 4).map((f) => f.name) || [];
+  const displayFields = collection?.fields.map((f) => f.name) || [];
 
   return (
     <div className="p-8">
