@@ -20,6 +20,8 @@ export interface FieldDefinition {
   facet?: boolean;
   sort?: boolean;
   optional?: boolean;
+  /** Whether this field is merge-enabled (for collection merge queries) */
+  merge?: boolean;
 }
 
 // Collection info returned by API
@@ -88,12 +90,21 @@ export interface SearchRequest {
   sort_by?: string;
   limit?: number;
   offset?: number;
+  /** @deprecated Use `merge` instead */
   overlay?: {
-    context_key: string;
-    comparison_field?: string; // Which overlay field to use for merge strategy (default: "value")
-    base_field: string;
-    strategy: "min" | "override" | "max";
-    return_fields?: string[]; // Which overlay fields to return (empty = all)
+    context_keys: string[];
+    priority_context?: string;
+    comparison_field?: string;
+    strategy: "min" | "max";
+    return_fields?: string[];
+  };
+  /** Collection merge configuration for joining separate collections at query time */
+  merge?: {
+    collections: string[];
+    priority_collection?: string;
+    comparison_field?: string;
+    strategy: "min" | "max";
+    return_fields?: string[];
   };
   typo_tolerance?: number;
   vector_search?: boolean;
@@ -103,21 +114,35 @@ export interface SearchRequest {
   language?: string;
 }
 
-// Overlay fields returned in search results
-export interface OverlayFields {
-  numeric: Record<string, number>;
-  string: Record<string, string>;
-}
+// Overlay fields returned in search results (flat map of field -> value)
+export type OverlayFields = Record<string, number | string>;
 
-// Search hit
+// Merge fields returned in search results (flat map of field -> value)
+export type MergeFields = Record<string, number | string>;
+
+// Search hit (standard format with doc wrapper)
 export interface SearchHit {
   id: string;
   score: number;
   doc: Document;
-  effective_value?: number;
   text_score?: number;
   vector_score?: number;
+  /** @deprecated Use `merge_fields` instead */
   overlay_fields?: OverlayFields;
+  /** Merge fields from collection merge queries */
+  merge_fields?: MergeFields;
+}
+
+// Flat search hit (for merge queries - all fields at root level, no doc wrapper)
+// Reserved fields: id, score, text_score, vector_score
+// All other document and merge fields are flattened to root
+export interface FlatSearchHit {
+  id: string;
+  score: number;
+  text_score?: number;
+  vector_score?: number;
+  // All other fields from document and merge collections
+  [key: string]: unknown;
 }
 
 // Facet value with count

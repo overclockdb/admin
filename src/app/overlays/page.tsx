@@ -414,6 +414,23 @@ export default function OverlaysPage() {
           </div>
         </div>
 
+        {/* Single context performance info */}
+        {contexts.length > 0 && (
+          <Card className="mb-4 border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20">
+            <CardContent className="flex items-start gap-4 pt-4 pb-4">
+              <div className="rounded-lg bg-green-100 p-2 dark:bg-green-900">
+                <svg className="h-4 w-4 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <p className="text-sm text-green-800 dark:text-green-200">
+                <strong>Single-context queries</strong> with overlay sorting use indexed iteration for ~30x faster performance.
+                Use a single <code className="bg-green-200/50 px-1 rounded">context_keys</code> entry when possible.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {contexts.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16">
@@ -557,6 +574,25 @@ export default function OverlaysPage() {
           </Link>
         </Button>
       </div>
+
+      {/* Performance tip card */}
+      <Card className="mb-6 border-blue-200 bg-blue-50/50 dark:border-blue-900 dark:bg-blue-950/20">
+        <CardContent className="flex items-start gap-4 pt-6">
+          <div className="rounded-lg bg-blue-100 p-2 dark:bg-blue-900">
+            <svg className="h-5 w-5 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <h4 className="font-semibold text-blue-900 dark:text-blue-100">Performance Tip: Indexed Sorting</h4>
+            <p className="text-sm text-blue-800 dark:text-blue-200 mt-1">
+              When searching with a <strong>single context</strong> and sorting by an overlay field,
+              OverclockDB uses indexed iteration for optimal performance (O(n) + O(limit) instead of O(n log n)).
+              Multi-context queries with min/max strategies use the standard scan approach.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {(!targetCollections || targetCollections.length === 0) ? (
         <Card>

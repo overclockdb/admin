@@ -40,8 +40,9 @@ const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "attributes", label: "Attributes" },
 ];
 
-interface FieldFormData extends FieldDefinition {
+interface FieldFormData extends Omit<FieldDefinition, 'merge'> {
   id: string;
+  merge: boolean;
 }
 
 export default function NewCollectionPage() {
@@ -58,6 +59,7 @@ export default function NewCollectionPage() {
       facet: false,
       sort: false,
       optional: false,
+      merge: false,
     },
   ]);
 
@@ -84,6 +86,7 @@ export default function NewCollectionPage() {
         facet: false,
         sort: false,
         optional: false,
+        merge: false,
       },
     ]);
   };
@@ -264,6 +267,22 @@ export default function NewCollectionPage() {
                         className="text-sm"
                       >
                         Optional
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`merge-${field.id}`}
+                        checked={field.merge}
+                        onCheckedChange={(checked) =>
+                          updateField(field.id, { merge: checked as boolean })
+                        }
+                      />
+                      <Label
+                        htmlFor={`merge-${field.id}`}
+                        className="text-sm"
+                        title="Enable merge index for collection merge queries"
+                      >
+                        Merge
                       </Label>
                     </div>
                   </div>
