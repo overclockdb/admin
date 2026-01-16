@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Database, Layers, GitBranch } from "lucide-react";
+import { Database, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigation = [
   { name: "Collections", href: "/collections", icon: Layers },
-  { name: "Overlays", href: "/overlays", icon: GitBranch },
 ];
 
 export function Sidebar() {

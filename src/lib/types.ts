@@ -90,14 +90,6 @@ export interface SearchRequest {
   sort_by?: string;
   limit?: number;
   offset?: number;
-  /** @deprecated Use `merge` instead */
-  overlay?: {
-    context_keys: string[];
-    priority_context?: string;
-    comparison_field?: string;
-    strategy: "min" | "max";
-    return_fields?: string[];
-  };
   /** Collection merge configuration for joining separate collections at query time */
   merge?: {
     collections: string[];
@@ -114,9 +106,6 @@ export interface SearchRequest {
   language?: string;
 }
 
-// Overlay fields returned in search results (flat map of field -> value)
-export type OverlayFields = Record<string, number | string>;
-
 // Merge fields returned in search results (flat map of field -> value)
 export type MergeFields = Record<string, number | string>;
 
@@ -127,8 +116,6 @@ export interface SearchHit {
   doc: Document;
   text_score?: number;
   vector_score?: number;
-  /** @deprecated Use `merge_fields` instead */
-  overlay_fields?: OverlayFields;
   /** Merge fields from collection merge queries */
   merge_fields?: MergeFields;
 }
@@ -212,15 +199,6 @@ export interface SetTranslationsRequest {
 export interface FieldTranslationsResponse {
   field: string;
   translations: Record<string, { labels: TranslationLabel }>;
-}
-
-// Overlay document type - supports any custom fields
-export interface OverlayDocument {
-  id: string;
-  context_key: string;
-  entity_key: string;
-  // Any additional fields (numeric, string, etc.)
-  [key: string]: unknown;
 }
 
 // API error response

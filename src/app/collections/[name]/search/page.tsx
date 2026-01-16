@@ -57,21 +57,13 @@ export default function SearchPage({
   const [results, setResults] = useState<SearchResponse | null>(null);
   const [expandedDoc, setExpandedDoc] = useState<string | null>(null);
 
-  // Merge configuration (new API)
+  // Merge configuration
   const [mergeEnabled, setMergeEnabled] = useState(false);
   const [mergeCollections, setMergeCollections] = useState("");
   const [mergePriorityCollection, setMergePriorityCollection] = useState("");
   const [mergeComparisonField, setMergeComparisonField] = useState("");
   const [mergeReturnFields, setMergeReturnFields] = useState("");
   const [mergeStrategy, setMergeStrategy] = useState<"min" | "max">("min");
-
-  // Overlay configuration (legacy API)
-  const [overlayEnabled, setOverlayEnabled] = useState(false);
-  const [overlayContextKeys, setOverlayContextKeys] = useState("");
-  const [overlayPriorityContext, setOverlayPriorityContext] = useState("");
-  const [overlayComparisonField, setOverlayComparisonField] = useState("");
-  const [overlayReturnFields, setOverlayReturnFields] = useState("");
-  const [overlayStrategy, setOverlayStrategy] = useState<"min" | "max">("min");
 
   // Request JSON editor
   const [lastRequest, setLastRequest] = useState<string>("");
@@ -84,7 +76,7 @@ export default function SearchPage({
       setCustomRequest("");
       setLastRequest("");
     }
-  }, [query, filter, selectedFacets, sortBy, limit, offset, typoTolerance, mergeEnabled, mergeCollections, mergePriorityCollection, mergeComparisonField, mergeReturnFields, mergeStrategy, overlayEnabled, overlayContextKeys, overlayPriorityContext, overlayComparisonField, overlayReturnFields, overlayStrategy]);
+  }, [query, filter, selectedFacets, sortBy, limit, offset, typoTolerance, mergeEnabled, mergeCollections, mergePriorityCollection, mergeComparisonField, mergeReturnFields, mergeStrategy]);
 
   // Sync JSON editor changes to form fields (real-time)
   useEffect(() => {
@@ -112,17 +104,6 @@ export default function SearchPage({
         setMergeEnabled(false);
       }
 
-      if (request.overlay) {
-        setOverlayEnabled(true);
-        setOverlayContextKeys(Array.isArray(request.overlay.context_keys) ? request.overlay.context_keys.join(", ") : "");
-        setOverlayPriorityContext(request.overlay.priority_context || "");
-        setOverlayComparisonField(request.overlay.comparison_field || "");
-        setOverlayReturnFields(Array.isArray(request.overlay.return_fields) ? request.overlay.return_fields.join(", ") : "");
-        setOverlayStrategy(request.overlay.strategy || "min");
-      } else if (request.overlay === undefined || request.overlay === null) {
-        setOverlayEnabled(false);
-      }
-
       // Reset flag after state updates are batched
       setTimeout(() => { syncingFromJson.current = false; }, 0);
     } catch {
@@ -132,14 +113,21 @@ export default function SearchPage({
 
   const facetFields =
     collection?.fields.filter((f) => f.facet).map((f) => f.name) || [];
-  const sortFields =
+  const baseSortFields =
     collection?.fields.filter((f) => f.sort).map((f) => f.name) || [];
+
+  // When merge is enabled, include merge fields in sort options
+  const mergeSortFields = mergeEnabled
+    ? [...new Set([
+        ...mergeReturnFields.split(",").map(s => s.trim()).filter(Boolean),
+        ...(mergeComparisonField ? [mergeComparisonField.trim()] : [])
+      ])]
+    : [];
+  const sortFields = [...baseSortFields, ...mergeSortFields.filter(f => !baseSortFields.includes(f))];
 
   const buildRequest = (searchOffset: number) => {
     const mergeCollectionsArray = mergeCollections.split(",").map(s => s.trim()).filter(Boolean);
     const mergeReturnFieldsArray = mergeReturnFields.split(",").map(s => s.trim()).filter(Boolean);
-    const contextKeysArray = overlayContextKeys.split(",").map(s => s.trim()).filter(Boolean);
-    const returnFieldsArray = overlayReturnFields.split(",").map(s => s.trim()).filter(Boolean);
     return {
       q: query || "*",
       filter: filter || undefined,
@@ -156,16 +144,6 @@ export default function SearchPage({
               comparison_field: mergeComparisonField || undefined,
               strategy: mergeStrategy,
               return_fields: mergeReturnFieldsArray.length > 0 ? mergeReturnFieldsArray : undefined,
-            }
-          : undefined,
-      overlay:
-        overlayEnabled && contextKeysArray.length > 0
-          ? {
-              context_keys: contextKeysArray,
-              priority_context: overlayPriorityContext || undefined,
-              comparison_field: overlayComparisonField || undefined,
-              strategy: overlayStrategy,
-              return_fields: returnFieldsArray.length > 0 ? returnFieldsArray : undefined,
             }
           : undefined,
     };
@@ -265,19 +243,33 @@ export default function SearchPage({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">No sorting</SelectItem>
-                    {sortFields.map((field) => (
+                    {baseSortFields.map((field) => (
                       <>
                         <SelectItem key={`${field}:asc`} value={`${field}:asc`}>
                           {field} (asc)
                         </SelectItem>
-                        <SelectItem
-                          key={`${field}:desc`}
-                          value={`${field}:desc`}
-                        >
+                        <SelectItem key={`${field}:desc`} value={`${field}:desc`}>
                           {field} (desc)
                         </SelectItem>
                       </>
                     ))}
+                    {mergeSortFields.length > 0 && (
+                      <>
+                        <SelectItem value="_merge_separator" disabled className="text-xs text-muted-foreground">
+                          — Merge fields —
+                        </SelectItem>
+                        {mergeSortFields.map((field) => (
+                          <>
+                            <SelectItem key={`merge-${field}:asc`} value={`${field}:asc`}>
+                              {field} (asc)
+                            </SelectItem>
+                            <SelectItem key={`merge-${field}:desc`} value={`${field}:desc`}>
+                              {field} (desc)
+                            </SelectItem>
+                          </>
+                        ))}
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -349,10 +341,7 @@ export default function SearchPage({
                 <CardTitle className="text-base">Collection Merge</CardTitle>
                 <Switch
                   checked={mergeEnabled}
-                  onCheckedChange={(checked) => {
-                    setMergeEnabled(checked);
-                    if (checked) setOverlayEnabled(false);
-                  }}
+                  onCheckedChange={setMergeEnabled}
                 />
               </div>
               <CardDescription>
@@ -420,89 +409,6 @@ export default function SearchPage({
                   />
                   <p className="text-xs text-muted-foreground">
                     Fields to include in flattened response
-                  </p>
-                </div>
-              </CardContent>
-            )}
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base">Value Overlay (Legacy)</CardTitle>
-                <Switch
-                  checked={overlayEnabled}
-                  onCheckedChange={(checked) => {
-                    setOverlayEnabled(checked);
-                    if (checked) setMergeEnabled(false);
-                  }}
-                />
-              </div>
-              <CardDescription>
-                Context-specific value overrides (deprecated)
-              </CardDescription>
-            </CardHeader>
-            {overlayEnabled && (
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Context Keys</Label>
-                  <Input
-                    value={overlayContextKeys}
-                    onChange={(e) => setOverlayContextKeys(e.target.value)}
-                    placeholder="customer:123, store:456"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Comma-separated list of context keys to search
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Priority Context (optional)</Label>
-                  <Input
-                    value={overlayPriorityContext}
-                    onChange={(e) => setOverlayPriorityContext(e.target.value)}
-                    placeholder="customer:123"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    If this context matches, use it directly; otherwise apply strategy
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Comparison Field</Label>
-                  <Input
-                    value={overlayComparisonField}
-                    onChange={(e) => setOverlayComparisonField(e.target.value)}
-                    placeholder="e.g., price"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Overlay field to use for min/max comparison and sorting
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label>Strategy</Label>
-                  <Select
-                    value={overlayStrategy}
-                    onValueChange={(v) =>
-                      setOverlayStrategy(v as "min" | "max")
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="min">Minimum (lower wins)</SelectItem>
-                      <SelectItem value="max">Maximum (higher wins)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Return Fields (optional)</Label>
-                  <Input
-                    value={overlayReturnFields}
-                    onChange={(e) => setOverlayReturnFields(e.target.value)}
-                    placeholder="price, discount"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Comma-separated overlay fields to include in response
                   </p>
                 </div>
               </CardContent>
@@ -614,8 +520,10 @@ export default function SearchPage({
                         <TableHead className="w-8"></TableHead>
                         <TableHead>ID</TableHead>
                         <TableHead>Score</TableHead>
-                        {(mergeEnabled || overlayEnabled) && <TableHead>{mergeEnabled ? "Merge Fields" : "Overlay"}</TableHead>}
                         <TableHead>Preview</TableHead>
+                        {mergeEnabled && mergeReturnFields.split(",").map(s => s.trim()).filter(Boolean).map(field => (
+                          <TableHead key={field}>{field}</TableHead>
+                        ))}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -645,72 +553,31 @@ export default function SearchPage({
                                 {hit.score.toFixed(3)}
                               </Badge>
                             </TableCell>
-                            {(mergeEnabled || overlayEnabled) && (
-                              <TableCell>
-                                {mergeEnabled ? (
-                                  // Merge fields are at root level (flat response)
-                                  (() => {
-                                    const returnFields = mergeReturnFields.split(",").map(s => s.trim()).filter(Boolean);
-                                    const hitAny = hit as Record<string, unknown>;
-                                    const mergeFieldEntries = returnFields.length > 0
-                                      ? returnFields.filter(f => hitAny[f] !== undefined).map(f => [f, hitAny[f]] as const)
-                                      : [];
-                                    return mergeFieldEntries.length > 0 ? (
-                                      <div className="flex flex-wrap gap-1">
-                                        {mergeFieldEntries.map(([key, val]) => (
-                                          <Badge key={key} variant="secondary" className="text-xs">
-                                            {key}: {String(val)}
-                                          </Badge>
-                                        ))}
-                                      </div>
-                                    ) : (
-                                      <span className="text-muted-foreground">-</span>
-                                    );
-                                  })()
-                                ) : hit.overlay_fields && Object.keys(hit.overlay_fields).length > 0 ? (
-                                  <div className="flex flex-wrap gap-1">
-                                    {Object.entries(hit.overlay_fields).map(([key, val]) => (
-                                      <Badge key={key} variant="secondary" className="text-xs">
-                                        {key}: {val}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </TableCell>
-                            )}
                             <TableCell className="max-w-md truncate">
-                              {getPreview(hit)}
+                              {getPreview(hit, mergeEnabled)}
                             </TableCell>
+                            {mergeEnabled && mergeReturnFields.split(",").map(s => s.trim()).filter(Boolean).map(field => {
+                              const hitAny = hit as unknown as Record<string, unknown>;
+                              const value = hitAny[field];
+                              return (
+                                <TableCell key={field} className="font-mono text-sm">
+                                  {value !== undefined ? String(value) : "-"}
+                                </TableCell>
+                              );
+                            })}
                           </TableRow>
                           {expandedDoc === hit.id && (
                             <TableRow>
-                              <TableCell colSpan={(mergeEnabled || overlayEnabled) ? 5 : 4}>
-                                <div className="space-y-4">
-                                  <div>
-                                    <h4 className="mb-2 text-sm font-medium">
-                                      {mergeEnabled ? "Full Response (Flat)" : "Document"}
-                                    </h4>
-                                    <pre className="max-h-64 overflow-auto rounded bg-muted p-4 text-xs">
-                                      {mergeEnabled
-                                        ? JSON.stringify(hit, null, 2)
-                                        : JSON.stringify(hit.doc, null, 2)}
-                                    </pre>
-                                  </div>
-                                  {!mergeEnabled && hit.overlay_fields && Object.keys(hit.overlay_fields).length > 0 && (
-                                    <div>
-                                      <h4 className="mb-2 text-sm font-medium">Overlay Fields</h4>
-                                      <div className="rounded bg-muted p-4 space-y-2">
-                                        {Object.entries(hit.overlay_fields).map(([key, val]) => (
-                                          <div key={key} className="flex justify-between text-sm">
-                                            <span className="text-muted-foreground">{key}:</span>
-                                            <Badge variant="secondary">{val}</Badge>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
+                              <TableCell colSpan={4 + (mergeEnabled ? mergeReturnFields.split(",").map(s => s.trim()).filter(Boolean).length : 0)}>
+                                <div>
+                                  <h4 className="mb-2 text-sm font-medium">
+                                    {mergeEnabled ? "Full Response (Flat)" : "Document"}
+                                  </h4>
+                                  <pre className="max-h-64 overflow-auto rounded bg-muted p-4 text-xs">
+                                    {mergeEnabled
+                                      ? JSON.stringify(hit, null, 2)
+                                      : JSON.stringify(hit.doc, null, 2)}
+                                  </pre>
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -747,8 +614,12 @@ export default function SearchPage({
   );
 }
 
-function getPreview(hit: SearchHit): string {
-  const { id, ...rest } = hit.doc;
+function getPreview(hit: SearchHit, isMerge: boolean): string {
+  // When merge is enabled, response is flat (no doc wrapper)
+  const source = isMerge ? (hit as unknown as Record<string, unknown>) : hit.doc;
+  if (!source) return "-";
+
+  const { id, score, text_score, vector_score, ...rest } = source as Record<string, unknown>;
   const firstString = Object.values(rest).find(
     (v) => typeof v === "string" && v.length > 0
   );
