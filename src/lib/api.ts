@@ -14,6 +14,8 @@ import type {
   FacetSuggestResponse,
   SetTranslationsRequest,
   FieldTranslationsResponse,
+  PricingSchema,
+  ListPricingSchemasResponse,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8190";
@@ -200,6 +202,40 @@ export async function getTranslations(
   return request<FieldTranslationsResponse>(
     `/api/v1/collections/${encodeURIComponent(collection)}/translations/${encodeURIComponent(field)}`
   );
+}
+
+// Pricing Schema endpoints
+export async function getPricingSchemas(): Promise<ListPricingSchemasResponse> {
+  return request<ListPricingSchemasResponse>("/api/v1/pricing-schemas");
+}
+
+export async function getPricingSchema(name: string): Promise<PricingSchema> {
+  return request<PricingSchema>(`/api/v1/pricing-schemas/${encodeURIComponent(name)}`);
+}
+
+export async function createPricingSchema(
+  schema: PricingSchema
+): Promise<PricingSchema> {
+  return request<PricingSchema>("/api/v1/pricing-schemas", {
+    method: "POST",
+    body: JSON.stringify(schema),
+  });
+}
+
+export async function updatePricingSchema(
+  name: string,
+  schema: PricingSchema
+): Promise<PricingSchema> {
+  return request<PricingSchema>(`/api/v1/pricing-schemas/${encodeURIComponent(name)}`, {
+    method: "PUT",
+    body: JSON.stringify(schema),
+  });
+}
+
+export async function deletePricingSchema(name: string): Promise<SuccessResponse> {
+  return request<SuccessResponse>(`/api/v1/pricing-schemas/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
 }
 
 export { ApiClientError };

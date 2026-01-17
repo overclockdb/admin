@@ -212,3 +212,72 @@ export interface HealthResponse {
   status: string;
   version: string;
 }
+
+// Pricing Schema types
+export type ApplyOn = "MSRP" | "DELIVERY_PRICE" | "DEFAULT_PRICE";
+export type CalcType = "PERCENT" | "ABSOLUTE";
+export type PriceType = "DEFAULT_PRICE" | "SALE_PRICE" | "END_PRICE";
+
+export interface BaseFields {
+  msrp?: string;
+  delivery_price?: string;
+}
+
+export interface PriceLayer {
+  pattern: string;
+  priority: number;
+  for_each?: string;
+  exact_price?: boolean;
+  condition?: string;
+}
+
+export interface PriceRulesConfig {
+  layers: PriceLayer[];
+  apply_on_field: string;
+  calculate_type_field: string;
+  amount_field: string;
+}
+
+export interface DirectPricesConfig {
+  layers: PriceLayer[];
+  price_field: string;
+  type_field?: string;
+  allow_line_discount_field?: string;
+}
+
+export interface DiscountRulesConfig {
+  layers: PriceLayer[];
+  condition?: string;
+  calculate_type_field: string;
+  amount_field: string;
+}
+
+export interface ResolutionConfig {
+  priority_order?: string[];
+  search_exact_price: boolean;
+}
+
+export interface PricingSchema {
+  name: string;
+  base_fields?: BaseFields;
+  price_rules?: PriceRulesConfig;
+  direct_prices?: DirectPricesConfig;
+  discount_rules?: DiscountRulesConfig;
+  price_layers?: PriceLayer[];
+  discount_layers?: PriceLayer[];
+  resolution: ResolutionConfig;
+  compute: Record<string, string>;
+}
+
+export interface PricingSchemaSummary {
+  name: string;
+  has_price_rules: boolean;
+  has_direct_prices: boolean;
+  has_discount_rules: boolean;
+  num_price_layers: number;
+  num_discount_layers: number;
+}
+
+export interface ListPricingSchemasResponse {
+  schemas: PricingSchemaSummary[];
+}
