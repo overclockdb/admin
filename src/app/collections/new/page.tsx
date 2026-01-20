@@ -72,6 +72,7 @@ export default function NewCollectionPage() {
     "english" | "russian" | "none"
   >("english");
   const [numShards, setNumShards] = useState<number | undefined>(undefined);
+  const [shardKey, setShardKey] = useState<string | undefined>(undefined);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -125,6 +126,7 @@ export default function NewCollectionPage() {
         enable_stop_words: enableStopWords,
         stop_words_language: enableStopWords ? stopWordsLanguage : undefined,
         num_shards: numShards,
+        shard_key: shardKey,
       });
       router.push(`/collections/${encodeURIComponent(name.trim())}`);
     } catch (err) {
@@ -398,6 +400,35 @@ export default function NewCollectionPage() {
                   <SelectItem value="4">4 shards</SelectItem>
                   <SelectItem value="8">8 shards</SelectItem>
                   <SelectItem value="16">16 shards</SelectItem>
+                  <SelectItem value="256">256 shards</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Shard Key (Field-Based Sharding)</Label>
+              <p className="text-sm text-muted-foreground">
+                Shard by a specific field value (e.g., customer_id) for locality. Requires num_shards.
+              </p>
+              <Select
+                value={shardKey || "none"}
+                onValueChange={(v) =>
+                  setShardKey(v === "none" ? undefined : v)
+                }
+                disabled={!numShards}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="No shard key" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No shard key (doc ID sharding)</SelectItem>
+                  {fields
+                    .filter((f) => f.name.trim() && f.type === "string")
+                    .map((f) => (
+                      <SelectItem key={f.id} value={f.name}>
+                        {f.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>

@@ -97,9 +97,19 @@ export default function CollectionDetailPage({
               <Badge variant="secondary" className="mr-2">
                 {collection.num_documents.toLocaleString()} documents
               </Badge>
-              <Badge variant="outline">
+              <Badge variant="outline" className="mr-2">
                 {collection.fields.length} fields
               </Badge>
+              {collection.shard_key && collection.num_shards && (
+                <Badge variant="default" className="mr-2">
+                  Shard-keyed: {collection.shard_key} ({collection.num_shards} shards)
+                </Badge>
+              )}
+              {collection.num_shards && !collection.shard_key && (
+                <Badge variant="default">
+                  {collection.num_shards} shards (doc ID)
+                </Badge>
+              )}
             </p>
           </div>
           <div className="flex gap-2">

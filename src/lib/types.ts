@@ -29,6 +29,8 @@ export interface CollectionInfo {
   name: string;
   num_documents: number;
   fields: FieldDefinition[];
+  shard_key?: string;
+  num_shards?: number;
 }
 
 // Collection summary in list response
@@ -48,6 +50,7 @@ export interface CreateCollectionRequest {
   enable_vectors?: boolean;
   vector_fields?: string[];
   num_shards?: number;
+  shard_key?: string;
 }
 
 // List collections response
@@ -224,7 +227,9 @@ export interface BaseFields {
 }
 
 export interface PriceLayer {
-  pattern: string;
+  pattern?: string;
+  collection?: string;
+  shard_by?: string;
   priority: number;
   for_each?: string;
   exact_price?: boolean;
