@@ -216,73 +216,67 @@ export interface HealthResponse {
   version: string;
 }
 
-// Pricing Schema types
-export type ApplyOn = "MSRP" | "DELIVERY_PRICE" | "DEFAULT_PRICE";
-export type CalcType = "PERCENT" | "ABSOLUTE";
-export type PriceType = "DEFAULT_PRICE" | "SALE_PRICE" | "END_PRICE";
+// Aggregation Config types
+export type PriorityStrategyType = "by_priority" | "min_value" | "max_value" | "first_match" | "all";
 
-export interface BaseFields {
-  msrp?: string;
-  delivery_price?: string;
-}
-
-export interface PriceLayer {
-  pattern?: string;
+export interface AggregationSource {
   collection?: string;
-  shard_by?: string;
-  priority: number;
+  pattern?: string;
+  priority?: number;
+  exact?: boolean;
   for_each?: string;
-  exact_price?: boolean;
+  shard_by?: string;
   condition?: string;
+  fields?: Record<string, string>;
 }
 
-export interface PriceRulesConfig {
-  layers: PriceLayer[];
-  apply_on_field: string;
-  calculate_type_field: string;
-  amount_field: string;
-}
-
-export interface DirectPricesConfig {
-  layers: PriceLayer[];
-  price_field: string;
-  type_field?: string;
-  allow_line_discount_field?: string;
-}
-
-export interface DiscountRulesConfig {
-  layers: PriceLayer[];
-  condition?: string;
-  calculate_type_field: string;
-  amount_field: string;
-}
-
-export interface ResolutionConfig {
-  priority_order?: string[];
-  search_exact_price: boolean;
-}
-
-export interface PricingSchema {
+export interface ComputedField {
   name: string;
-  base_fields?: BaseFields;
-  price_rules?: PriceRulesConfig;
-  direct_prices?: DirectPricesConfig;
-  discount_rules?: DiscountRulesConfig;
-  price_layers?: PriceLayer[];
-  discount_layers?: PriceLayer[];
-  resolution: ResolutionConfig;
-  compute: Record<string, string>;
+  expression: string;
+  dependencies?: string[];
 }
 
-export interface PricingSchemaSummary {
+export interface PriorityStrategy {
+  type: PriorityStrategyType;
+  field?: string;
+  prefer_exact?: boolean;
+}
+
+export interface AggregationConfig {
   name: string;
-  has_price_rules: boolean;
-  has_direct_prices: boolean;
-  has_discount_rules: boolean;
-  num_price_layers: number;
-  num_discount_layers: number;
+  merge_key: string;
+  sources: AggregationSource[];
+  priority_strategy: PriorityStrategy;
+  computed_fields?: ComputedField[];
 }
 
-export interface ListPricingSchemasResponse {
-  schemas: PricingSchemaSummary[];
+export interface AggregationConfigSummary {
+  name: string;
+  merge_key: string;
+  num_sources: number;
+  num_computed_fields: number;
+  strategy_type: string;
+}
+
+export interface ListAggregationsResponse {
+  configs: AggregationConfigSummary[];
+}
+
+// Schema update types
+export interface FieldModification {
+  name: string;
+  index?: boolean;
+  facet?: boolean;
+  sort?: boolean;
+  optional?: boolean;
+}
+
+export interface UpdateSchemaRequest {
+  field_modifications: FieldModification[];
+}
+
+export interface UpdateSchemaResponse {
+  name: string;
+  documents_reindexed: number;
+  message: string;
 }

@@ -14,8 +14,8 @@ import type {
   FacetSuggestResponse,
   SetTranslationsRequest,
   FieldTranslationsResponse,
-  PricingSchema,
-  ListPricingSchemasResponse,
+  AggregationConfig,
+  ListAggregationsResponse,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8190";
@@ -82,6 +82,32 @@ export async function deleteCollection(name: string): Promise<SuccessResponse> {
   return request<SuccessResponse>(`/api/v1/collections/${encodeURIComponent(name)}`, {
     method: "DELETE",
   });
+}
+
+export async function renameCollection(
+  name: string,
+  newName: string
+): Promise<SuccessResponse> {
+  return request<SuccessResponse>(
+    `/api/v1/collections/${encodeURIComponent(name)}/rename`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ new_name: newName }),
+    }
+  );
+}
+
+export async function updateCollectionSchema(
+  name: string,
+  fieldModifications: { name: string; index?: boolean; facet?: boolean; sort?: boolean; optional?: boolean }[]
+): Promise<{ name: string; documents_reindexed: number; message: string }> {
+  return request<{ name: string; documents_reindexed: number; message: string }>(
+    `/api/v1/collections/${encodeURIComponent(name)}/schema`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ field_modifications: fieldModifications }),
+    }
+  );
 }
 
 // Document endpoints
@@ -204,36 +230,36 @@ export async function getTranslations(
   );
 }
 
-// Pricing Schema endpoints
-export async function getPricingSchemas(): Promise<ListPricingSchemasResponse> {
-  return request<ListPricingSchemasResponse>("/api/v1/pricing-schemas");
+// Aggregation Config endpoints
+export async function getAggregations(): Promise<ListAggregationsResponse> {
+  return request<ListAggregationsResponse>("/api/v1/aggregations");
 }
 
-export async function getPricingSchema(name: string): Promise<PricingSchema> {
-  return request<PricingSchema>(`/api/v1/pricing-schemas/${encodeURIComponent(name)}`);
+export async function getAggregation(name: string): Promise<AggregationConfig> {
+  return request<AggregationConfig>(`/api/v1/aggregations/${encodeURIComponent(name)}`);
 }
 
-export async function createPricingSchema(
-  schema: PricingSchema
-): Promise<PricingSchema> {
-  return request<PricingSchema>("/api/v1/pricing-schemas", {
+export async function createAggregation(
+  config: AggregationConfig
+): Promise<AggregationConfig> {
+  return request<AggregationConfig>("/api/v1/aggregations", {
     method: "POST",
-    body: JSON.stringify(schema),
+    body: JSON.stringify(config),
   });
 }
 
-export async function updatePricingSchema(
+export async function updateAggregation(
   name: string,
-  schema: PricingSchema
-): Promise<PricingSchema> {
-  return request<PricingSchema>(`/api/v1/pricing-schemas/${encodeURIComponent(name)}`, {
+  config: AggregationConfig
+): Promise<AggregationConfig> {
+  return request<AggregationConfig>(`/api/v1/aggregations/${encodeURIComponent(name)}`, {
     method: "PUT",
-    body: JSON.stringify(schema),
+    body: JSON.stringify(config),
   });
 }
 
-export async function deletePricingSchema(name: string): Promise<SuccessResponse> {
-  return request<SuccessResponse>(`/api/v1/pricing-schemas/${encodeURIComponent(name)}`, {
+export async function deleteAggregation(name: string): Promise<SuccessResponse> {
+  return request<SuccessResponse>(`/api/v1/aggregations/${encodeURIComponent(name)}`, {
     method: "DELETE",
   });
 }

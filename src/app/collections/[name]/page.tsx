@@ -3,8 +3,9 @@
 import { use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Search, FileText, Trash2, Loader2, Languages, Lightbulb } from "lucide-react";
-import { useCollection, useDeleteCollection } from "@/hooks/use-collections";
+import { ArrowLeft, Search, FileText, Trash2, Loader2, Languages, Lightbulb, Pencil, Settings2 } from "lucide-react";
+import { useCollection, useDeleteCollection, useRenameCollection, useUpdateSchema } from "@/hooks/use-collections";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,6 +15,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -43,12 +46,64 @@ export default function CollectionDetailPage({
   const router = useRouter();
   const { data: collection, isLoading, error } = useCollection(decodedName);
   const deleteCollection = useDeleteCollection();
+  const renameCollection = useRenameCollection();
+  const updateSchema = useUpdateSchema();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [showSchemaDialog, setShowSchemaDialog] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [fieldChanges, setFieldChanges] = useState<Record<string, { index?: boolean; facet?: boolean; sort?: boolean; optional?: boolean }>>({});
 
   const handleDelete = async () => {
     await deleteCollection.mutateAsync(decodedName);
     router.push("/collections");
   };
+
+  const handleRename = async () => {
+    if (!newName.trim() || newName === decodedName) return;
+    await renameCollection.mutateAsync({ name: decodedName, newName: newName.trim() });
+    router.push(`/collections/${encodeURIComponent(newName.trim())}`);
+  };
+
+  const openRenameDialog = () => {
+    setNewName(decodedName);
+    setShowRenameDialog(true);
+  };
+
+  const openSchemaDialog = () => {
+    setFieldChanges({});
+    setShowSchemaDialog(true);
+  };
+
+  const handleFieldChange = (
+    fieldName: string,
+    property: "index" | "facet" | "sort" | "optional",
+    value: boolean
+  ) => {
+    setFieldChanges((prev) => ({
+      ...prev,
+      [fieldName]: {
+        ...prev[fieldName],
+        [property]: value,
+      },
+    }));
+  };
+
+  const handleSaveSchema = async () => {
+    const modifications = Object.entries(fieldChanges).map(([name, changes]) => ({
+      name,
+      ...changes,
+    }));
+    if (modifications.length === 0) return;
+    await updateSchema.mutateAsync({
+      name: decodedName,
+      fieldModifications: modifications,
+    });
+    setShowSchemaDialog(false);
+    setFieldChanges({});
+  };
+
+  const hasSchemaChanges = Object.keys(fieldChanges).length > 0;
 
   if (isLoading) {
     return (
@@ -137,6 +192,139 @@ export default function CollectionDetailPage({
                 Suggest
               </Link>
             </Button>
+            <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
+              <DialogTrigger asChild>
+                <Button variant="outline" onClick={openRenameDialog}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Rename
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Rename Collection</DialogTitle>
+                  <DialogDescription>
+                    Enter a new name for the collection &quot;{collection.name}&quot;.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <Label htmlFor="newName">New Name</Label>
+                  <Input
+                    id="newName"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="Enter new collection name"
+                    className="mt-2"
+                  />
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowRenameDialog(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleRename}
+                    disabled={renameCollection.isPending || !newName.trim() || newName === decodedName}
+                  >
+                    {renameCollection.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    Rename
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <Dialog open={showSchemaDialog} onOpenChange={setShowSchemaDialog}>
+              <DialogTrigger asChild>
+                <Button variant="outline" onClick={openSchemaDialog}>
+                  <Settings2 className="mr-2 h-4 w-4" />
+                  Edit Schema
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                  <DialogTitle>Edit Schema</DialogTitle>
+                  <DialogDescription>
+                    Modify field properties. This will trigger a full reindex of all{" "}
+                    {collection.num_documents.toLocaleString()} documents.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="max-h-96 overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Index</TableHead>
+                        <TableHead>Facet</TableHead>
+                        <TableHead>Sort</TableHead>
+                        <TableHead>Optional</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {collection.fields.map((field) => (
+                        <TableRow key={field.name}>
+                          <TableCell className="font-medium">{field.name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{field.type}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Switch
+                              checked={fieldChanges[field.name]?.index ?? field.index !== false}
+                              onCheckedChange={(checked) =>
+                                handleFieldChange(field.name, "index", checked)
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Switch
+                              checked={fieldChanges[field.name]?.facet ?? field.facet === true}
+                              onCheckedChange={(checked) =>
+                                handleFieldChange(field.name, "facet", checked)
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Switch
+                              checked={fieldChanges[field.name]?.sort ?? field.sort === true}
+                              onCheckedChange={(checked) =>
+                                handleFieldChange(field.name, "sort", checked)
+                              }
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Switch
+                              checked={fieldChanges[field.name]?.optional ?? field.optional === true}
+                              onCheckedChange={(checked) =>
+                                handleFieldChange(field.name, "optional", checked)
+                              }
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowSchemaDialog(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSaveSchema}
+                    disabled={updateSchema.isPending || !hasSchemaChanges}
+                  >
+                    {updateSchema.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    Save &amp; Reindex
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
               <DialogTrigger asChild>
                 <Button variant="destructive">
@@ -197,6 +385,30 @@ export default function CollectionDetailPage({
               </TableRow>
             </TableHeader>
             <TableBody>
+              {/* Implicit document ID field */}
+              <TableRow className="bg-muted/30">
+                <TableCell className="font-medium">
+                  id
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    Document ID
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">string</Badge>
+                </TableCell>
+                <TableCell>
+                  <span className="text-muted-foreground">No</span>
+                </TableCell>
+                <TableCell>
+                  <span className="text-muted-foreground">No</span>
+                </TableCell>
+                <TableCell>
+                  <span className="text-muted-foreground">No</span>
+                </TableCell>
+                <TableCell>
+                  <span className="text-muted-foreground">No</span>
+                </TableCell>
+              </TableRow>
               {collection.fields.map((field) => (
                 <TableRow key={field.name}>
                   <TableCell className="font-medium">{field.name}</TableCell>

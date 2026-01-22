@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { Plus, Trash2, Loader2, Edit } from "lucide-react";
 import {
-  usePricingSchemas,
-  useDeletePricingSchema,
-} from "@/hooks/use-pricing-schemas";
+  useAggregations,
+  useDeleteAggregation,
+} from "@/hooks/use-aggregations";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -26,14 +26,14 @@ import {
 } from "@/components/ui/dialog";
 import { useState } from "react";
 
-export default function PricingSchemasPage() {
-  const { data, isLoading, error } = usePricingSchemas();
-  const deletePricingSchema = useDeletePricingSchema();
+export default function AggregationsPage() {
+  const { data, isLoading, error } = useAggregations();
+  const deleteAggregation = useDeleteAggregation();
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const handleDelete = async () => {
     if (deleteTarget) {
-      await deletePricingSchema.mutateAsync(deleteTarget);
+      await deleteAggregation.mutateAsync(deleteTarget);
       setDeleteTarget(null);
     }
   };
@@ -52,7 +52,7 @@ export default function PricingSchemasPage() {
         <Card className="border-destructive">
           <CardHeader>
             <CardTitle className="text-destructive">
-              Failed to load pricing schemas
+              Failed to load aggregation configs
             </CardTitle>
             <CardDescription>
               Make sure OverclockDB is running on{" "}
@@ -64,46 +64,46 @@ export default function PricingSchemasPage() {
     );
   }
 
-  const schemas = data?.schemas || [];
+  const configs = data?.configs || [];
 
   return (
     <div className="p-8">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Pricing Schemas</h1>
+          <h1 className="text-3xl font-bold">Aggregations</h1>
           <p className="mt-1 text-muted-foreground">
-            Configure multi-layer pricing for B2B use cases
+            Multi-source data merging with computed fields for pricing, inventory, and more
           </p>
         </div>
         <Button asChild>
-          <Link href="/pricing-schemas/new">
+          <Link href="/aggregations/new">
             <Plus className="mr-2 h-4 w-4" />
-            New Schema
+            New Aggregation
           </Link>
         </Button>
       </div>
 
-      {schemas.length === 0 ? (
+      {configs.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <p className="mb-4 text-muted-foreground">No pricing schemas yet</p>
+            <p className="mb-4 text-muted-foreground">No aggregation configs yet</p>
             <Button asChild>
-              <Link href="/pricing-schemas/new">
+              <Link href="/aggregations/new">
                 <Plus className="mr-2 h-4 w-4" />
-                Create your first pricing schema
+                Create your first aggregation
               </Link>
             </Button>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {schemas.map((schema) => (
-            <Card key={schema.name} className="group relative">
+          {configs.map((config) => (
+            <Card key={config.name} className="group relative">
               <CardHeader>
                 <CardTitle className="flex items-center justify-between gap-2">
-                  <span>{schema.name}</span>
+                  <span>{config.name}</span>
                   <Link
-                    href={`/pricing-schemas/${encodeURIComponent(schema.name)}`}
+                    href={`/aggregations/${encodeURIComponent(config.name)}`}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -113,32 +113,26 @@ export default function PricingSchemasPage() {
                 </CardTitle>
                 <CardDescription className="space-y-1">
                   <div className="flex flex-wrap gap-1">
-                    {schema.has_price_rules && (
-                      <Badge variant="secondary">Price Rules</Badge>
-                    )}
-                    {schema.has_direct_prices && (
-                      <Badge variant="secondary">Direct Prices</Badge>
-                    )}
-                    {schema.has_discount_rules && (
-                      <Badge variant="secondary">Discounts</Badge>
-                    )}
+                    <Badge variant="outline">merge: {config.merge_key}</Badge>
+                    <Badge variant="secondary">{config.strategy_type}</Badge>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {schema.num_price_layers > 0 && (
-                      <span>{schema.num_price_layers} price layers</span>
+                    {config.num_sources > 0 && (
+                      <span>{config.num_sources} source{config.num_sources !== 1 ? 's' : ''}</span>
                     )}
-                    {schema.num_price_layers > 0 &&
-                      schema.num_discount_layers > 0 && <span> · </span>}
-                    {schema.num_discount_layers > 0 && (
-                      <span>{schema.num_discount_layers} discount layers</span>
+                    {config.num_sources > 0 && config.num_computed_fields > 0 && (
+                      <span> · </span>
+                    )}
+                    {config.num_computed_fields > 0 && (
+                      <span>{config.num_computed_fields} computed field{config.num_computed_fields !== 1 ? 's' : ''}</span>
                     )}
                   </div>
                 </CardDescription>
               </CardHeader>
               <Dialog
-                open={deleteTarget === schema.name}
+                open={deleteTarget === config.name}
                 onOpenChange={(open) =>
-                  setDeleteTarget(open ? schema.name : null)
+                  setDeleteTarget(open ? config.name : null)
                 }
               >
                 <DialogTrigger asChild>
@@ -153,9 +147,9 @@ export default function PricingSchemasPage() {
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Delete Pricing Schema</DialogTitle>
+                    <DialogTitle>Delete Aggregation Config</DialogTitle>
                     <DialogDescription>
-                      Are you sure you want to delete &quot;{schema.name}
+                      Are you sure you want to delete &quot;{config.name}
                       &quot;? This action cannot be undone.
                     </DialogDescription>
                   </DialogHeader>
@@ -169,9 +163,9 @@ export default function PricingSchemasPage() {
                     <Button
                       variant="destructive"
                       onClick={handleDelete}
-                      disabled={deletePricingSchema.isPending}
+                      disabled={deleteAggregation.isPending}
                     >
-                      {deletePricingSchema.isPending ? (
+                      {deleteAggregation.isPending ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       ) : null}
                       Delete
