@@ -107,6 +107,8 @@ export interface SearchRequest {
   max_facet_values?: number;
   hierarchy_parent?: string;
   language?: string;
+  /** Explicit shard values to query (for shard-keyed collections) */
+  shard_values?: string[];
 }
 
 // Merge fields returned in search results (flat map of field -> value)
@@ -224,7 +226,6 @@ export interface AggregationSource {
   pattern?: string;
   priority?: number;
   exact?: boolean;
-  for_each?: string;
   shard_by?: string;
   condition?: string;
   fields?: Record<string, string>;

@@ -27,13 +27,8 @@ const exampleConfig: Omit<AggregationConfig, "name"> = {
       exact: true,
     },
     {
-      pattern: "prices_group_{group}",
-      priority: 2,
-      for_each: "groups",
-    },
-    {
       collection: "prices_default",
-      priority: 3,
+      priority: 2,
     },
   ],
   priority_strategy: {
@@ -162,7 +157,7 @@ export default function NewAggregationPage() {
                   <li><code>pattern</code> - Dynamic pattern with {"{variable}"} placeholders</li>
                   <li><code>priority</code> - Lower number = higher priority</li>
                   <li><code>exact</code> - Mark as exact match for prefer_exact strategies</li>
-                  <li><code>for_each</code> - Iterate over context array</li>
+                  <li><code>shard_by</code> - Shard key for optimization</li>
                 </ul>
               </div>
               <div>
