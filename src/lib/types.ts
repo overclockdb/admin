@@ -84,6 +84,14 @@ export interface BatchImportResponse {
   }>;
 }
 
+// Shard source for merge queries on shard-keyed collections
+export interface ShardSource {
+  /** Name of the shard-keyed collection */
+  collection: string;
+  /** Shard values to query from this collection */
+  shard_values: string[];
+}
+
 // Search request
 export interface SearchRequest {
   q: string;
@@ -95,10 +103,21 @@ export interface SearchRequest {
   offset?: number;
   /** Collection merge configuration for joining separate collections at query time */
   merge?: {
-    collections: string[];
+    /** Regular collections to merge */
+    collections?: string[];
+    /** Shard-keyed collection sources */
+    shard_sources?: ShardSource[];
+    /** Field in merge collections to join on (matches main collection's document id)
+     * Example: "product_id" - prices.product_id matches products.id
+     * If not specified, uses document id */
+    join_field?: string;
+    /** Priority collection - format: "collection_name" or "collection:shard_value" */
     priority_collection?: string;
+    /** Field used for min/max strategy comparison */
     comparison_field?: string;
+    /** Strategy for combining values */
     strategy: "min" | "max";
+    /** Specific fields to return */
     return_fields?: string[];
   };
   typo_tolerance?: number;
@@ -216,51 +235,6 @@ export interface ApiError {
 export interface HealthResponse {
   status: string;
   version: string;
-}
-
-// Aggregation Config types
-export type PriorityStrategyType = "by_priority" | "min_value" | "max_value" | "first_match" | "all";
-
-export interface AggregationSource {
-  collection?: string;
-  pattern?: string;
-  priority?: number;
-  exact?: boolean;
-  shard_by?: string;
-  condition?: string;
-  fields?: Record<string, string>;
-}
-
-export interface ComputedField {
-  name: string;
-  expression: string;
-  dependencies?: string[];
-}
-
-export interface PriorityStrategy {
-  type: PriorityStrategyType;
-  field?: string;
-  prefer_exact?: boolean;
-}
-
-export interface AggregationConfig {
-  name: string;
-  merge_key: string;
-  sources: AggregationSource[];
-  priority_strategy: PriorityStrategy;
-  computed_fields?: ComputedField[];
-}
-
-export interface AggregationConfigSummary {
-  name: string;
-  merge_key: string;
-  num_sources: number;
-  num_computed_fields: number;
-  strategy_type: string;
-}
-
-export interface ListAggregationsResponse {
-  configs: AggregationConfigSummary[];
 }
 
 // Schema update types

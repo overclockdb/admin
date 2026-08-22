@@ -14,8 +14,6 @@ import type {
   FacetSuggestResponse,
   SetTranslationsRequest,
   FieldTranslationsResponse,
-  AggregationConfig,
-  ListAggregationsResponse,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8190";
@@ -228,40 +226,6 @@ export async function getTranslations(
   return request<FieldTranslationsResponse>(
     `/api/v1/collections/${encodeURIComponent(collection)}/translations/${encodeURIComponent(field)}`
   );
-}
-
-// Aggregation Config endpoints
-export async function getAggregations(): Promise<ListAggregationsResponse> {
-  return request<ListAggregationsResponse>("/api/v1/aggregations");
-}
-
-export async function getAggregation(name: string): Promise<AggregationConfig> {
-  return request<AggregationConfig>(`/api/v1/aggregations/${encodeURIComponent(name)}`);
-}
-
-export async function createAggregation(
-  config: AggregationConfig
-): Promise<AggregationConfig> {
-  return request<AggregationConfig>("/api/v1/aggregations", {
-    method: "POST",
-    body: JSON.stringify(config),
-  });
-}
-
-export async function updateAggregation(
-  name: string,
-  config: AggregationConfig
-): Promise<AggregationConfig> {
-  return request<AggregationConfig>(`/api/v1/aggregations/${encodeURIComponent(name)}`, {
-    method: "PUT",
-    body: JSON.stringify(config),
-  });
-}
-
-export async function deleteAggregation(name: string): Promise<SuccessResponse> {
-  return request<SuccessResponse>(`/api/v1/aggregations/${encodeURIComponent(name)}`, {
-    method: "DELETE",
-  });
 }
 
 export { ApiClientError };

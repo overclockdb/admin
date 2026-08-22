@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Database, Layers, Combine } from "lucide-react";
+import { Database, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigation = [
   { name: "Collections", href: "/collections", icon: Layers },
-  { name: "Aggregations", href: "/aggregations", icon: Combine },
 ];
 
 export function Sidebar() {
